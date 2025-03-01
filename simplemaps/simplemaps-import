@@ -1,0 +1,235 @@
+#! /usr/bin/env bash
+#
+# gps/simplemaps/simplemaps-import
+#
+# raymondstrose@hotmail.com
+#
+#   Build a Postgres base image.
+#
+
+append () { sed -e "s?\$?$@?"; }
+prepend () { sed -e "s?^?$@?"; }
+indent () { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "    "; }
+error () { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "$PROGNAME: error: " >&2; }
+warning () { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "$PROGNAME: warning: " >&2; }
+notice () { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "$PROGNAME: notice: " >&2; }
+info () { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "$PROGNAME: info: " >&2; }
+verbose () { $VERBOSE_MODE && { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "$PROGNAME: verbose: " >&2; } }
+debug () { $DEBUG_MODE && { { if [ $# -ne 0 ]; then echo -e "$@"; else cat; fi; } | prepend "$PROGNAME: debug: " >&2; } }
+
+function execute ()
+{
+    declare -a params;
+
+    for param; do
+        if [[ -z "${param}" || "${param}" =~ [^A-Za-z0-9_@%+=:,./-] ]]; then
+            params+=("'${param//\'/\'\"\'\"\'}'");
+        else
+            params+=("${param}");
+        fi;
+    done;
+
+    debug "${params[*]}";
+    eval ${params[*]};
+}
+
+main ()
+{
+# Display usage information.
+#
+    usage ()
+    {
+        cat <<-EOF >&2
+			$PROGNAME: usage: $PROGNAME [--help] [--debug] [--verbose] [--noop] [--config-dir {path}]
+
+			--config-dir {path}           Specify the configuration directory (default: $CONFIG_DIR)
+			--noop                        Don't perform the operation, just report the actions that would be carried out.
+			--verbose                     Enable verbose mode.
+			--debug                       Enable debug mode.
+			--help                        Display this usage information.
+			EOF
+
+        return 0;
+    }
+
+# Load configuration files.
+#
+	load_config ()
+	{
+		if [ "$CONFIG_DIR" ]; then
+			if [ -d "$CONFIG_DIR" ]; then
+
+			# Configure the process
+			#
+				notice "Loading configuration.";
+				for filename in $CONFIG_DIR/*; do
+					indent "$filename" | debug;
+					[ -f "$filename" ] && { source "$filename" || return 1; }
+				done;
+			fi;
+		fi;
+
+		return 0;
+	}
+
+	import_operation ()
+	{
+		create_database ()
+		{
+			DATABASE_NAME="$1";
+
+			cat <<-EOF
+				-- Database: $DATABASE_NAME
+
+				DROP DATABASE IF EXISTS $DATABASE_NAME;
+
+				CREATE DATABASE $DATABASE_NAME
+					WITH
+					OWNER = postgres
+					ENCODING = 'UTF8'
+					LC_COLLATE = 'en_US.utf8'
+					LC_CTYPE = 'en_US.utf8'
+					TABLESPACE = pg_default
+					CONNECTION LIMIT = -1
+					IS_TEMPLATE = False;
+				EOF
+		}
+
+		#PAYLOAD=$(cat);
+
+		#create_database "$1" | execute psql --no-psqlrc;
+
+		#echo "$PAYLOAD" | execute psql --no-psqlrc $TARGET_DATABASE;
+		#echo "$PAYLOAD";
+	}
+
+	export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/go/bin";
+	export PROGNAME=$(basename "$0");
+	export PROGDIR=$(dirname "$0");
+	export INSTALL_DIR=$(dirname "$PROGDIR");
+	export CONFIG_DIR="$INSTALL_DIR/etc/$PROGNAME";
+	export LIB_DIR="$INSTALL_DIR/lib/$PROGNAME";
+	export WORK_DIR="$INSTALL_DIR/var/$PROGNAME";
+	export DEBUG_MODE=false;
+	export VERBOSE_MODE=false;
+	export NOOP_MODE=false;
+	export IMAGE_PREFIX="raymondstrose/";
+	export IMAGE_NAME="postgres";
+	export IMAGE_TAG="13.1";
+	[ "$PGUSER" ] || PGUSER="postgres";
+	[ "$PGPASSWORD" ] || PGPASSWORD="root";
+	[ "$RESTORE_SOURCE" ] || RESTORE_SOURCE="";
+	[ "$RESTORE_DESTINATION" ] || RESTORE_DESTINATION="";
+
+# Load the default configuration files.
+	load_config || return $?;
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+		--restore-source|--restore-source=?*)
+            case "$1" in
+            --restore-source)		RESTORE_SOURCE="$2"; shift;;
+            --restore-source=?*)	RESTORE_SOURCE="${1--restore-source=}";;
+            esac;;
+		--restore-destination|--restore-destination=?*)
+            case "$1" in
+            --restore-destination)		RESTORE_DESTINATION="$2"; shift;;
+            --restore-destination=?*)	RESTORE_DESTINATION="${1--restore-destination=}";;
+            esac;;
+		-c)
+			if [ -r "$2" ]; then
+				source "$2";
+				shift;
+			else
+				error "Unreadable config file \"$2\"";
+				exit 1;
+			fi;;
+        --image-name|--image-name=?*)
+            case "$1" in
+            --image-name)		IMAGE_NAME="$2"; shift;;
+            --image-name=?*)	IMAGE_NAME="${1#--image-name=}";;
+            esac;;
+        --image-tag|--image-tag=?*)
+            case "$1" in
+            --image-tag)	IMAGE_TAG="$2"; shift;;
+            --image-tag=?*)	IMAGE_TAG="${1#--image-tag=}";;
+            esac;;
+        --config-dir|--config-dir=?*)
+            case "$1" in
+            --config-dir)		CONFIG_DIR="$2"; shift;;
+            --config-dir=?*)	CONFIG_DIR="${1#--config-dir=}";;
+            esac;
+
+		# Load the specified configuration files.
+			load_config || return $?;;
+        --debug)	$DEBUG_MODE && set -x; DEBUG_MODE=true;;
+        --noop)		NOOP_MODE=true;;
+        --verbose)	VERBOSE_MODE=true;;
+        --help) usage; return 2;;
+        --) shift; break;;
+        -*)	error "unknown option \"$1\""; usage; return 1;;
+        *)	error "unrecognised command line argument \"$1\""; usage; return 1;;
+        esac;
+
+        shift;
+    done;
+
+# Load config
+#
+	if [ $# = 0 ]; then
+		SCRIPTPATH=$(cd ${0%/*} && pwd -P)
+		source $SCRIPTPATH/pg_backup.config
+	fi;
+
+	debug $(uname -a);
+	debug "$(env) | awk '/PASSWORD.*/ FS== { printf("%s=xxxxxxxx", $1); }'";
+
+# Pre-restore checks
+#
+	if [ ! "$RESTORE_SOURCE" ]; then
+		error "RESTORE_SOURCE undefined";
+		return 1;
+	fi;
+
+	if [ ! "$RESTORE_DESTINATION" ]; then
+		error "RESTORE_DESTINATION undefined";
+		return 1;
+	fi;
+
+# Make sure we're running as the required backup user
+	if [ "$BACKUP_USER" != "" -a "$(id -un)" != "$BACKUP_USER" ]; then
+		error "This script must be run as $BACKUP_USER. Exiting.";
+		exit 1;
+	fi;
+
+# Initialise defaults
+#
+	if [ ! "$HOSTNAME" ]; then
+		if [ "$PGHOST" ]; then
+			HOSTNAME="$PGHOST";
+		else
+			HOSTNAME="localhost";
+		fi;
+	fi;
+
+	if [ ! "$PGUSER" ]; then
+		PGUSER="postgres";
+	fi;
+
+	execute echo "$HOSTNAME:$POSTGRESQL_HA_POSTGRESQL_SERVICE_PORT_POSTGRESQL:template1:$PGUSER:$POSTGRES_PASSWORD" >>$HOME/.pgpass;
+	execute echo "$HOSTNAME:$POSTGRESQL_HA_POSTGRESQL_SERVICE_PORT_POSTGRESQL:postgres:$PGUSER:$POSTGRES_PASSWORD" >>$HOME/.pgpass;
+	execute echo "$HOSTNAME:$POSTGRESQL_HA_POSTGRESQL_SERVICE_PORT_POSTGRESQL:repmgr:$PGUSER:$POSTGRES_PASSWORD" >>$HOME/.pgpass;
+	execute chmod 600 $HOME/.pgpass;
+
+	BACKUP_FILES=$(ls -lart $RESTORE_SOURCE);
+	{ echo "$RESTORE_SOURCE"; indent "$BACKUP_FILES"; } | debug;
+
+	if [ -r "$RESTORE_SOURCE" ]; then
+		TARGET_DATABASE="restore_test";
+		execute cat "$RESTORE_SOURCE" | execute gunzip -c | execute import_operation $TARGET_DATABASE;
+	fi;
+
+	return 0;
+}
+
+	main "$@";
