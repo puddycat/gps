@@ -191,10 +191,10 @@ main ()
 		return 1;
 	fi;
 
-	if [ ! "$RESTORE_DESTINATION" ]; then
-		error "RESTORE_DESTINATION undefined";
-		return 1;
-	fi;
+#	if [ ! "$RESTORE_DESTINATION" ]; then
+#		error "RESTORE_DESTINATION undefined";
+#		return 1;
+#	fi;
 
 # Make sure we're running as the required backup user
 	if [ "$BACKUP_USER" != "" -a "$(id -un)" != "$BACKUP_USER" ]; then

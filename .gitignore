@@ -1,3 +1,4 @@
 *.log
 etc/*
 simplemaps/etc/*
+simplemaps/*.zip
