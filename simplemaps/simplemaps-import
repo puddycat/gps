@@ -74,6 +74,28 @@ main ()
 
 	import_operation ()
 	{
+		enable_postgis ()
+		{
+			cat <<-EOF
+				CREATE EXTENSION postgis;
+				SELECT postgis_full_version();
+				SELECT PostGIS_GEOS_Version();
+				SELECT PostGIS_GEOS_Compiled_Version();
+				SELECT PostGIS_Liblwgeom_Version();
+				SELECT PostGIS_LibXML_Version();
+				SELECT PostGIS_LibJSON_Version();
+				SELECT PostGIS_Lib_Build_Date();
+				SELECT PostGIS_Lib_Version();
+				SELECT PostGIS_PROJ_Version();
+				SELECT PostGIS_PROJ_Compiled_Version();
+				SELECT PostGIS_Wagyu_Version();
+				SELECT PostGIS_Scripts_Build_Date();
+				SELECT PostGIS_Scripts_Installed();
+				SELECT PostGIS_Scripts_Released();
+				SELECT PostGIS_Version();
+				EOF
+		}
+
 		create_database ()
 		{
 			DATABASE_NAME="$1";
@@ -95,12 +117,64 @@ main ()
 				EOF
 		}
 
+		csv_import ()
+		{
+			create_table ()
+			{
+				cat <<-EOF
+					CREATE TABLE worldcities (
+						id SERIAL,
+						first_name VARCHAR(50),
+						last_name VARCHAR(50),
+						dob DATE,
+						email VARCHAR(255),
+						PRIMARY KEY (id)
+
+						city		TEXT,
+						city_ascii	TEXT,
+						lat,
+						lng,
+						country		TEXT,
+						iso2		TEXT,
+						iso3		TEXT,
+						admin_name,
+						capital		TEXT,
+						population	,
+						id			SERIAL,
+						PRIMARY KEY (id)
+						);
+					EOF
+			}
+
+			payload ()
+			{
+				cat <<-EOF
+					EOF
+			}
+
+			return 0;
+		}
+
 		#PAYLOAD=$(cat);
 
 		#create_database "$1" | execute psql --no-psqlrc;
 
 		#echo "$PAYLOAD" | execute psql --no-psqlrc $TARGET_DATABASE;
 		#echo "$PAYLOAD";
+
+		execute unzip $INPUT_FILE_NAME;
+
+		BACKUP_FILES=$(ls -laRrt $INPUT_FILE_NAME);
+		{ echo "$INPUT_FILE_NAME"; indent "$BACKUP_FILES"; } | debug;
+
+		execute head -n 5 worldcities.csv;
+
+		enable_postgis | execute psql --no-psqlrc $TARGET_DATABASE;
+
+#		if [ -r "$INPUT_FILE_NAME" ]; then
+#			TARGET_DATABASE="restore_test";
+#			execute cat "$INPUT_FILE_NAME" | execute gunzip -c | execute import_operation $TARGET_DATABASE;
+#		fi;
 	}
 
 	export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/go/bin";
@@ -176,10 +250,10 @@ main ()
 
 # Load config
 #
-	if [ $# = 0 ]; then
-		SCRIPTPATH=$(cd ${0%/*} && pwd -P)
-		source $SCRIPTPATH/pg_backup.config
-	fi;
+#	if [ $# = 0 ]; then
+#		SCRIPTPATH=$(cd ${0%/*} && pwd -P)
+#		source $SCRIPTPATH/pg_backup.config
+#	fi;
 
 	debug $(uname -a);
 	debug "$(env) | awk '/PASSWORD.*/ FS== { printf("%s=xxxxxxxx", $1); }'";
@@ -221,12 +295,24 @@ main ()
 	execute echo "$HOSTNAME:$POSTGRESQL_HA_POSTGRESQL_SERVICE_PORT_POSTGRESQL:repmgr:$PGUSER:$POSTGRES_PASSWORD" >>$HOME/.pgpass;
 	execute chmod 600 $HOME/.pgpass;
 
-	BACKUP_FILES=$(ls -lart $RESTORE_SOURCE);
-	{ echo "$RESTORE_SOURCE"; indent "$BACKUP_FILES"; } | debug;
+#	BACKUP_FILES=$(ls -lart $RESTORE_SOURCE);
+#	{ echo "$RESTORE_SOURCE"; indent "$BACKUP_FILES"; } | debug;
+#
+#	if [ -r "$RESTORE_SOURCE" ]; then
+#		TARGET_DATABASE="restore_test";
+#		execute cat "$RESTORE_SOURCE" | execute gunzip -c | execute import_operation $TARGET_DATABASE;
+#	fi;
 
-	if [ -r "$RESTORE_SOURCE" ]; then
+	execute pwd;
+	execute ls -lart;
+	echo "";
+
+	BACKUP_FILES=$(ls -lart $INPUT_FILE_NAME);
+	{ echo "$INPUT_FILE_NAME"; indent "$BACKUP_FILES"; } | debug;
+
+	if [ -r "$INPUT_FILE_NAME" ]; then
 		TARGET_DATABASE="restore_test";
-		execute cat "$RESTORE_SOURCE" | execute gunzip -c | execute import_operation $TARGET_DATABASE;
+		execute cat "$INPUT_FILE_NAME" | execute gunzip -c | execute import_operation $TARGET_DATABASE;
 	fi;
 
 	return 0;

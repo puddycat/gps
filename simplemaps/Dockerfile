@@ -20,9 +20,11 @@ LABEL MAINTAINER=raymondstrose@hotmail.com
 ARG	POSTGRES_HTTP_PORT
 
 COPY simplemaps-import /usr/bin/
-RUN apt-get upgrade -y
+RUN apt-get upgrade -y; apt-get update
+RUN apt-get install -y unzip
 #RUN apt-get install -y inetutils-ping nmap dnsutils
 
+WORKDIR /home/import
 EXPOSE ${POSTGRES_HTTP_PORT}
 
 ENTRYPOINT ["/usr/bin/simplemaps-import", "--debug", "--verbose"]

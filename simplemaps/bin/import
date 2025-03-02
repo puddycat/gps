@@ -76,8 +76,9 @@ main ()
 	usage ()
 	{
 		cat <<-EOF >&2
-			$PROGNAME: usage: $PROGNAME [--help] [--debug] [--verbose] [--noop] [--config-dir {path}] [--image-name {name}] [--image-tag {tag}] [--build-image] [--database-name {name}] [--database-host-name {name}] [--database-host-port {name}]
+			$PROGNAME: usage: $PROGNAME [--help] [--debug] [--verbose] [--noop] [--config-dir {path}] [--image-name {name}] [--image-tag {tag}] [--build-image] [--database-name {name}] [--database-host-name {name}] [--database-host-port {name}] --file {name}
 
+			--file {name}                 Specify the SimpleMaps data file to import (default: $INPUT_FILE_NAME)
 			--database-name {name}        Specify the target database name (default: $DATABASE_NAME)
 			--database-host-name {name}   Specify the target database host name (default: $DATABASE_HOST_NAME)
 			--database-host-port {name}   Specify the target database host port (default: $DATABASE_HOST_PORT)
@@ -144,6 +145,7 @@ main ()
 
 				export RESTORE_SOURCE="/Users/raymond/Downloads/simplemaps_worldcities_basicv1.77.zip";
 				export RESTORE_DESTINATION="";
+				export INPUT_FILE_NAME="simplemaps_worldcities_basicv1.77.zip";
 				EOF
 		fi;
 
@@ -201,6 +203,7 @@ main ()
 		[ "$PGPASSWORD" ] || PGPASSWORD="default";
 		[ "$PGUSER" ] && echo "--env PGUSER=$PGUSER";
 		[ "$PGPASSWORD" ] && echo "--env PGPASSWORD=$PGPASSWORD";
+		[ "$INPUT_FILE_NAME" ] && echo "--env INPUT_FILE_NAME=$INPUT_FILE_NAME";
 		return 0;
 	}
 
@@ -209,6 +212,10 @@ main ()
 		if [ "$POSTGRES_BACKUP_DATA_VOLUME_NAME" ]; then
 			#echo "--mount source=$POSTGRES_BACKUP_DATA_VOLUME_NAME,destination=/var/lib/postgresql/data";
 			echo "--mount type=volume,source=$POSTGRES_BACKUP_DATA_VOLUME_NAME,target=/home/backups/database/postgresql";
+		fi;
+
+		if [ "$INPUT_FILE_NAME" ]; then
+			echo "--mount type=bind,source=./$INPUT_FILE_NAME,destination=/home/import/$INPUT_FILE_NAME,readonly";
 		fi;
 
 		return 0;
@@ -259,6 +266,11 @@ main ()
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
+		--file|--file=?*)
+			case "$1" in
+			--file)		INPUT_FILE_NAME="$2"; shift;;
+			--file=?*)	INPUT_FILE_NAME="${1--file=}";;
+			esac;;
 		--database-host-name|--database-host-name=?*)
 			case "$1" in
 			--database-host-name)		DATABASE_HOST_NAME="$2"; shift;;
