@@ -77,7 +77,7 @@ main ()
 		enable_postgis ()
 		{
 			cat <<-EOF
-				CREATE EXTENSION postgis;
+				CREATE EXTENSION IF NOT EXISTS postgis;
 				SELECT postgis_full_version();
 				SELECT PostGIS_GEOS_Version();
 				SELECT PostGIS_GEOS_Compiled_Version();
